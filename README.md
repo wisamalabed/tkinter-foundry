@@ -133,6 +133,8 @@ Examples:
 - `fix: resolve login button not working` → Bumps patch version
 - `feat(ui): add dark mode support` → Bumps minor version with scope
 
+Conventional commits [cheatsheet](https://gist.github.com/qoomon/5dfcdf8eec66a051ecd85625518cfd13)
+
 ### Multi-Platform Releases
 
 When you create a release on GitHub, the workflow automatically builds and packages your application for:
