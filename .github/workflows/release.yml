@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - windows
+        - macos
+        - linux
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        exclude:
+          # Exclude combinations based on trigger
+          - os: windows-latest
+            if: github.event_name == 'workflow_dispatch' && github.event.inputs.platform != 'all' && github.event.inputs.platform != 'windows'
+          - os: macos-latest
+            if: github.event_name == 'workflow_dispatch' && github.event.inputs.platform != 'all' && github.event.inputs.platform != 'macos'
+          - os: ubuntu-latest
+            if: github.event_name == 'workflow_dispatch' && github.event.inputs.platform != 'all' && github.event.inputs.platform != 'linux'
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+      with:
+        version: "latest"
+    
+    - name: Install dependencies
+      run: uv sync --all-extras
+    
+    - name: Install pyinstaller
+      run: uv add pyinstaller
+    
+    - name: Build application
+      run: |
+        # Build with pyinstaller
+        pyinstaller_cmd = [
+            "pyinstaller",
+            "--onefile",
+            "--windowed",
+            "--name=tkinter-app",
+            "--add-data=src/app;src/app",
+            "src/app/main.py"
+        ]
+        
+        # Adjust for different platforms
+        if matrix.os == 'windows-latest':
+            pyinstaller_cmd.extend(["--icon=assets/icon.ico"])
+        elif matrix.os == 'macos-latest':
+            pyinstaller_cmd.extend(["--icon=assets/icon.icns"])
+        else:  # linux
+            pyinstaller_cmd.extend(["--icon=assets/icon.png"])
+        
+        uv run "${pyinstaller_cmd[@]}"
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: tkinter-app-${{ matrix.os }}
+        path: dist/
+        retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+    
+    - name: Create release archive
+      run: |
+        mkdir -p release
+        cp -r tkinter-app-*/* release/
+        tar -czf tkinter-app-release.tar.gz release/
+    
+    - name: Upload release assets
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./tkinter-app-release.tar.gz
+        asset_name: tkinter-app-release.tar.gz
+        asset_content_type: application/gzip
