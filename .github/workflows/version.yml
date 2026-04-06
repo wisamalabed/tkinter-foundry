@@ -1,0 +1,93 @@
+name: Version Bump
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**'
+      - '!**/*.py'
+      - '!pyproject.toml'
+      - '!ruff.toml'
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      new-version: ${{ steps.version.outputs.new-version }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+      with:
+        version: "latest"
+    
+    - name: Install conventional-commits-parser
+      run: uv add conventional-commits-parser
+    
+    - name: Update version
+      id: version
+      run: |
+        python -c "
+        import re
+        from conventional_commits_parser import parse
+        
+        # Get latest commit message
+        import subprocess
+        result = subprocess.run(['git', 'log', '-1', '--pretty=format:%s'], capture_output=True, text=True)
+        commit_message = result.stdout.strip()
+        
+        # Parse commit message
+        parsed = parse(commit_message)
+        
+        if parsed and parsed['type'] in ['feat', 'fix']:
+            # Extract scope if present
+            scope = parsed['scope'] if parsed['scope'] else ''
+            
+            # Read current version
+            with open('pyproject.toml', 'r') as f:
+                content = f.read()
+            
+            # Extract current version
+            current_match = re.search(r'version = \"([^\"]+)\"', content)
+            if current_match:
+                current_version = current_match.group(1)
+                major, minor, patch = map(int, current_version.split('.'))
+                
+                # Bump version based on commit type
+                if parsed['type'] == 'feat':
+                    if scope:
+                        new_version = f'{major}.{minor}.{patch}-alpha.{scope}'
+                    else:
+                        new_version = f'{major}.{minor + 1}.0'
+                else:  # fix
+                    new_version = f'{major}.{minor}.{patch + 1}'
+                
+                # Update version
+                new_content = re.sub(
+                    r'version = \"([^\"]+)\"',
+                    f'version = \"{new_version}\"',
+                    content
+                )
+                
+                with open('pyproject.toml', 'w') as f:
+                    f.write(new_content)
+                
+                print(f'::set-output name=new-version::{new_version}')
+        "
+    
+    - name: Push version changes
+      run: |
+        git config --global user.name 'GitHub Actions'
+        git config --global user.email 'actions@github.com'
+        git add pyproject.toml
+        git commit -m "chore: version bump to ${{ steps.version.outputs.new-version }}"
+        git push
+      if: steps.version.outputs.new-version
