@@ -7,6 +7,9 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     tk \
+    python3-tk \
+    python3-dev \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy uv and install it
@@ -26,3 +29,4 @@ USER appuser
 
 # Set entrypoint
 ENTRYPOINT ["uv", "run", "python", "-m", "app.main"]
+
