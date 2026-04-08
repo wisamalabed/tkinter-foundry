@@ -29,59 +29,40 @@ jobs:
       with:
         version: "latest"
     
-    - name: Install conventional-commits-parser
-      run: uv add conventional-commits-parser
+    - name: Install dependencies
+      run: uv sync --all-extras
     
-    - name: Update version
+    - name: Update version with Commitizen
       id: version
       run: |
-        python -c "
-        import re
-        from conventional_commits_parser import parse
-        
         # Get latest commit message
         import subprocess
         result = subprocess.run(['git', 'log', '-1', '--pretty=format:%s'], capture_output=True, text=True)
         commit_message = result.stdout.strip()
         
-        # Parse commit message
-        parsed = parse(commit_message)
-        
-        if parsed and parsed['type'] in ['feat', 'fix']:
-            # Extract scope if present
-            scope = parsed['scope'] if parsed['scope'] else ''
-            
-            # Read current version
-            with open('pyproject.toml', 'r') as f:
-                content = f.read()
-            
-            # Extract current version
-            current_match = re.search(r'version = \"([^\"]+)\"', content)
-            if current_match:
-                current_version = current_match.group(1)
-                major, minor, patch = map(int, current_version.split('.'))
-                
-                # Bump version based on commit type
-                if parsed['type'] == 'feat':
-                    if scope:
-                        new_version = f'{major}.{minor}.{patch}-alpha.{scope}'
-                    else:
-                        new_version = f'{major}.{minor + 1}.0'
-                else:  # fix
-                    new_version = f'{major}.{minor}.{patch + 1}'
-                
-                # Update version
-                new_content = re.sub(
-                    r'version = \"([^\"]+)\"',
-                    f'version = \"{new_version}\"',
-                    content
-                )
-                
-                with open('pyproject.toml', 'w') as f:
-                    f.write(new_content)
-                
-                print(f'::set-output name=new-version::{new_version}')
-        "
+        # Check if it's a conventional commit
+        if commit_message.startswith(('feat:', 'fix:', 'docs:', 'style:', 'refactor:', 'test:', 'chore:')):
+            # Use cz bump to determine version bump
+            version_output = subprocess.run(['cz', 'version', '--dry-run'], capture_output=True, text=True)
+            if version_output.returncode == 0:
+                # Extract version from output
+                import re
+                version_match = re.search(r'v?(\d+\.\d+\.\d+)', version_output.stdout)
+                if version_match:
+                    new_version = version_match.group(1)
+                    print(f"::set-output name=new-version::{new_version}")
+        elif commit_message.startswith('feat:'):
+            # Minor version bump for features
+            current_version = subprocess.run(['cz', 'version', '--workspace-version'], capture_output=True, text=True).stdout.strip()
+            major, minor, patch = map(int, current_version.split('.'))
+            new_version = f"{major}.{minor + 1}.0"
+            print(f"::set-output name=new-version::{new_version}")
+        elif commit_message.startswith('fix:'):
+            # Patch version bump for fixes
+            current_version = subprocess.run(['cz', 'version', '--workspace-version'], capture_output=True, text=True).stdout.strip()
+            major, minor, patch = map(int, current_version.split('.'))
+            new_version = f"{major}.{minor}.{patch + 1}"
+            print(f"::set-output name=new-version::{new_version}")
     
     - name: Push version changes
       run: |
