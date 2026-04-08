@@ -17,8 +17,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "tkinter-tooltip>=2.1.0",
-    "customtkinter>=5.2.0"
+    "customtkinter>=5.2.0",
 ]
 
 [project.optional-dependencies]
@@ -40,7 +39,7 @@ dev-dependencies = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py39"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -66,3 +65,7 @@ keep-runtime-typing = true
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 addopts = "--cov=src --cov-report=term-missing --cov-report=html"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/app"]
+include = ["LICENSE", "README.md"]
