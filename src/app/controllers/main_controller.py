@@ -9,11 +9,11 @@ if TYPE_CHECKING:
 class MainController:
     """Main application controller."""
     
-    def __init__(self, root: tk.Tk) -> None:
+    def __init__(self, root) -> None:
         """Initialize the main controller.
         
         Args:
-            root: The root tkinter window
+            root: The root CustomTkinter window
         """
         self.root = root
         self.view = None
@@ -30,3 +30,16 @@ class MainController:
         """Handle button click event."""
         if self.view:
             self.view.update_status("Button clicked!")
+            # Animate progress bar
+            import threading
+            import time
+            
+            def animate_progress():
+                for i in range(11):
+                    self.view.update_progress(i / 10.0)
+                    time.sleep(0.1)
+                self.view.update_progress(0.5)  # Reset to default
+            
+            thread = threading.Thread(target=animate_progress)
+            thread.daemon = True
+            thread.start()
